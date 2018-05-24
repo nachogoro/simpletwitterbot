@@ -9,6 +9,8 @@ import datetime
 import random
 
 
+MIN_FOLLOWERS_FOR_REPLY = 200
+
 def main():
     # Path where the script and config files are located
     path = os.path.dirname(os.path.realpath(__file__))
@@ -76,7 +78,10 @@ def main():
         # Reply to the first 'replies_per_query' tweets
         replied = 0
         for to_reply in results:
-            if to_reply.user.screen_name not in already_replied:
+            if (to_reply.user.screen_name not in already_replied
+                    and len(api.GetFollowers(
+                        screen_name=to_reply.user.screen_name,
+                        total_count=200)) >= MIN_FOLLOWERS_FOR_REPLY):
                 # Pick a reply at random
                 response = random.choice(replies)
                 api.PostUpdate(
