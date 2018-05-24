@@ -1,0 +1,24 @@
+*DO-NOT-COMMIT.txt
+.twitter-credentials.db
+.python-version
+compile_commands.json
+Release/
+Debug/
+bin/
+
+# Swap
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
+
+# Session
+Session.vim
+
+# Temporary
+.netrwhist
+*~
+# Auto-generated tag files
+.tags
+
+access_token.bin
