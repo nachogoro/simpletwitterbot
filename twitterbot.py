@@ -48,7 +48,8 @@ def main():
         consumer_key,
         consumer_secret,
         access_token['oauth_token'.encode('utf-8')].decode('utf-8'),
-        access_token['oauth_token_secret'.encode('utf-8')].decode('utf-8'))
+        access_token['oauth_token_secret'.encode('utf-8')].decode('utf-8'),
+        sleep_on_rate_limit=True)
     api.VerifyCredentials()
 
     today = datetime.datetime.now().date()
