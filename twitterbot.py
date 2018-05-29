@@ -26,7 +26,7 @@ def main():
         access_token = pickle.load(src)
 
     # Load the queries and the replies
-    with open(os.path.join(path, 'replies.json')) as src:
+    with open(os.path.join(path, 'replies.json'), encoding='utf-8') as src:
         queries_dict = json.loads(src.read())
 
     try:
