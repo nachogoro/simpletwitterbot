@@ -10,9 +10,16 @@ import time
 import twitter
 
 
+# Path where the script and config files are located
+PATH = os.path.dirname(os.path.realpath(__file__))
 MIN_FOLLOWERS_FOR_REPLY = 200
 SLEEP_BETWEEN_RATE_LIMIT_ERROR = datetime.timedelta(minutes=1)
 MAX_WAIT_FOR_OPERATION = datetime.timedelta(minutes=20)
+
+def _update_replied_users(already_replied):
+    with open(os.path.join(PATH, 'already_replied.bin'), 'wb') as dst:
+        pickle.dump(already_replied, dst)
+
 
 def _safe_get_followers(api, screen_name):
     """
@@ -134,25 +141,22 @@ def _safe_reply(api, status, in_reply_to):
 
 
 def main():
-    # Path where the script and config files are located
-    path = os.path.dirname(os.path.realpath(__file__))
-
     # Get consumer key and secret
-    with open(os.path.join(path, 'secrets.key'), 'r') as keys:
+    with open(os.path.join(PATH, 'secrets.key'), 'r') as keys:
         contents = [l.strip() for l in keys.readlines() if l.strip()]
         consumer_key = contents[0]
         consumer_secret = contents[1]
 
     # Get access token
-    with open(os.path.join(path, 'access_token.bin'), 'rb') as src:
+    with open(os.path.join(PATH, 'access_token.bin'), 'rb') as src:
         access_token = pickle.load(src)
 
     # Load the queries and the replies
-    with open(os.path.join(path, 'replies.json'), encoding='utf-8') as src:
+    with open(os.path.join(PATH, 'replies.json'), encoding='utf-8') as src:
         queries_dict = json.loads(src.read())
 
     try:
-        with open(os.path.join(path, 'already_replied.bin'), 'rb') as src:
+        with open(os.path.join(PATH, 'already_replied.bin'), 'rb') as src:
             loaded_already_replied = pickle.load(src)
             already_replied = {}
             # Always use lower-case for convenience (in case someone manually
@@ -163,13 +167,13 @@ def main():
         already_replied = {}
 
     # Load ignored accounts
-    with open(os.path.join(path, 'ignored_accounts.bin'), 'rb') as src:
+    with open(os.path.join(PATH, 'ignored_accounts.bin'), 'rb') as src:
         # Always use lower-case for convenience (in case someone manually
         # modifies the list and includes upper case names)
         ignored_accounts = [e.lower() for e in pickle.load(src)]
 
     # Load the number of replies per query
-    with open(os.path.join(path, 'replies_per_query.cfg'), 'r') as src:
+    with open(os.path.join(PATH, 'replies_per_query.cfg'), 'r') as src:
         replies_per_query = int(src.readline().strip())
 
     # Create a Twitter client
@@ -187,6 +191,7 @@ def main():
     for user, date in list(already_replied.items()):
         if date < a_week_ago:
             del already_replied[user]
+    _update_replied_users(already_replied)
 
     for query, replies in queries_dict.items():
         # Search for recent tweets in Spanish which have been written 600km
@@ -214,6 +219,7 @@ def main():
                 # this user's followers for a few days so that we do not waste
                 # requests.
                 already_replied[to_reply.user.screen_name.lower()] = today
+                _update_replied_users(already_replied)
                 continue
 
             # The user has not been interacted with for a few days and has
@@ -223,14 +229,11 @@ def main():
                         '@%s %s' % (to_reply.user.screen_name, response),
                         to_reply.id)
             already_replied[to_reply.user.screen_name.lower()] = today
+            _update_replied_users(already_replied)
             replied += 1
 
             if replied >= replies_per_query:
                 break
-
-        # Update the already_replied database
-        with open(os.path.join(path, 'already_replied.bin'), 'wb') as dst:
-            pickle.dump(already_replied, dst)
 
 
 if __name__ == '__main__':
