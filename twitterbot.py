@@ -204,19 +204,29 @@ def main():
         # Reply to the first 'replies_per_query' tweets
         replied = 0
         for to_reply in results:
-            followers = _safe_get_followers(api, to_reply.user.screen_name)
-            if (to_reply.user.screen_name.lower() not in already_replied
-                    and followers >= MIN_FOLLOWERS_FOR_REPLY):
-                # Pick a reply at random
-                response = random.choice(replies)
-                _safe_reply(api,
-                            '@%s %s' % (to_reply.user.screen_name, response),
-                            to_reply.id)
-                already_replied[to_reply.user.screen_name.lower()] = today
-                replied += 1
+            if to_reply.user.screen_name.lower() in already_replied:
+                continue
 
-                if replied >= replies_per_query:
-                    break
+            followers = _safe_get_followers(api, to_reply.user.screen_name)
+
+            if followers < MIN_FOLLOWERS_FOR_REPLY:
+                # Pretend we responded to them. We want to avoid re-checking
+                # this user's followers for a few days so that we do not waste
+                # requests.
+                already_replied[to_reply.user.screen_name.lower()] = today
+                continue
+
+            # The user has not been interacted with for a few days and has
+            # enough followers. Pick a reply at random
+            response = random.choice(replies)
+            _safe_reply(api,
+                        '@%s %s' % (to_reply.user.screen_name, response),
+                        to_reply.id)
+            already_replied[to_reply.user.screen_name.lower()] = today
+            replied += 1
+
+            if replied >= replies_per_query:
+                break
 
         # Update the already_replied database
         with open(os.path.join(path, 'already_replied.bin'), 'wb') as dst:
