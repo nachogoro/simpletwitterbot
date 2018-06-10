@@ -114,7 +114,7 @@ def main():
             secrets_file = line.split(':')[1].strip()
         elif line.startswith('IGNORED_ACCOUNTS:'):
             ignored_accounts = [e.replace(' ', '')
-                                for e in line.split(':')[1].split(",")]
+                                for e in line.strip().split(':')[1].split(',')]
         else:
             print('Cannot recognize line: %s' % line)
             print('Installation cancelled')
@@ -152,8 +152,11 @@ def main():
     with open(os.path.join(install_path, 'replies_per_query.cfg'), 'w') as dst:
         print(str(replies_per_query), file=dst)
 
-    with open(os.path.join(install_path, 'ignored_accounts.bin'), 'wb') as dst:
-        pickle.dump(ignored_accounts, dst)
+    with open(os.path.join(install_path, 'ignored_accounts.txt'), 'w') as dst:
+        for account in ignored_accounts:
+            print(account, file=dst)
+        # Print an empty line just to make sure the file is created
+        print(account, file=dst)
 
     shutil.copy2(secrets_file, os.path.join(install_path, 'secrets.key'))
 

@@ -21,41 +21,6 @@ def _update_replied_users(already_replied):
         pickle.dump(already_replied, dst)
 
 
-def _safe_get_followers(api, screen_name):
-    """
-    Safe method to retrieve the number of followers for a given user (up-to
-    200).
-    This method will keep trying if the rate-limit is exceeded and only after
-    having tried for MAX_WAIT_FOR_OPERATION will it throw. If the operation
-    fails because of a non-rate-limit-exceeded error, this method will throw an
-    exception.
-    This method is necessary because sleep_on_rate_limit seems to be buggy in
-    twitter-version 3.3.
-    """
-    first_attempt = datetime.datetime.now()
-
-    while True:
-        try:
-            return len(api.GetFollowers(screen_name=screen_name,
-                                        total_count=200))
-        except twitter.error.TwitterError as e:
-            if (not isinstance(e.message, dict)
-                    or 'code' not in e.mesage
-                    or e.message['code'] != 88):
-                # It is not a rate-limit exceeded error, re-raise it
-                raise e
-
-            now = datetime.datetime.now()
-            if now >= first_attempt + MAX_WAIT_FOR_OPERATION:
-                print('Failed to retrieve followers for {} after {}'.format(
-                    screen_name, MAX_WAIT_FOR_OPERATION))
-                raise e
-
-            # We have gotten a "rate-limit exceeded" error but have not yet
-            # reached the waiting limit
-            time.sleep(SLEEP_BETWEEN_RATE_LIMIT_ERROR.seconds)
-
-
 def _safe_search(api, query):
     """
     Safe method to retrieve the results of a search query (sorted by recent, in
@@ -167,10 +132,10 @@ def main():
         already_replied = {}
 
     # Load ignored accounts
-    with open(os.path.join(PATH, 'ignored_accounts.bin'), 'rb') as src:
+    with open(os.path.join(PATH, 'ignored_accounts.txt'), 'r') as src:
         # Always use lower-case for convenience (in case someone manually
         # modifies the list and includes upper case names)
-        ignored_accounts = [e.lower() for e in pickle.load(src)]
+        ignored_accounts = [e.strip().lower() for e in src.readlines()]
 
     # Load the number of replies per query
     with open(os.path.join(PATH, 'replies_per_query.cfg'), 'r') as src:
@@ -183,7 +148,16 @@ def main():
         access_token['oauth_token'.encode('utf-8')].decode('utf-8'),
         access_token['oauth_token_secret'.encode('utf-8')].decode('utf-8'),
         sleep_on_rate_limit=True)
-    api.VerifyCredentials()
+    self_user = api.VerifyCredentials()
+
+    if not self_user:
+        print('Failed to authenticate!')
+        return
+
+    # Add ourselves to the list of ignored accounts to avoid replying to
+    # ourselves
+    if self_user.screen_name.lower() not in ignored_accounts:
+        ignored_accounts.append(self_user.screen_name.lower())
 
     today = datetime.datetime.now().date()
     a_week_ago = today - datetime.timedelta(days=7)
@@ -191,7 +165,7 @@ def main():
     for user, date in list(already_replied.items()):
         if date < a_week_ago:
             del already_replied[user]
-    _update_replied_users(already_replied)
+            _update_replied_users(already_replied)
 
     for query, replies in queries_dict.items():
         # Search for recent tweets in Spanish which have been written 600km
@@ -201,7 +175,7 @@ def main():
         to_ignore = list(already_replied.keys()) + ignored_accounts
 
         # Exclude tweets from users who we have already replied to in the last
-        # week (and from ourselves!) and RTs
+        # week, users we want to actively ignore and RTs
         results = [r for r in results
                    if (r.user.screen_name.lower() not in to_ignore
                        and not r.retweeted_status)]
@@ -209,17 +183,10 @@ def main():
         # Reply to the first 'replies_per_query' tweets
         replied = 0
         for to_reply in results:
-            if to_reply.user.screen_name.lower() in already_replied:
-                continue
+            followers_count = to_reply.user.followers_count
 
-            followers = _safe_get_followers(api, to_reply.user.screen_name)
-
-            if followers < MIN_FOLLOWERS_FOR_REPLY:
-                # Pretend we responded to them. We want to avoid re-checking
-                # this user's followers for a few days so that we do not waste
-                # requests.
-                already_replied[to_reply.user.screen_name.lower()] = today
-                _update_replied_users(already_replied)
+            if (to_reply.user.screen_name.lower() in already_replied
+                    or followers_count < MIN_FOLLOWERS_FOR_REPLY):
                 continue
 
             # The user has not been interacted with for a few days and has
