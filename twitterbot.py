@@ -43,9 +43,9 @@ def _safe_search(api, query):
                                  count=100)
 
         except twitter.error.TwitterError as e:
-            if (not isinstance(e.message, dict)
-                    or 'code' not in e.mesage
-                    or e.message['code'] != 88):
+            if (not isinstance(e.message[0], dict)
+                    or 'code' not in e.message[0]
+                    or e.message[0]['code'] != 88):
                 # It is not a rate-limit exceeded error, re-raise it
                 raise e
 
@@ -81,14 +81,14 @@ def _safe_reply(api, status, in_reply_to):
                 in_reply_to_status_id=in_reply_to)
 
         except twitter.error.TwitterError as e:
-            if (not isinstance(e.message, dict)
-                    or 'code' not in e.mesage
-                    or e.message['code'] not in (88, 187)):
+            if (not isinstance(e.message[0], dict)
+                    or 'code' not in e.message[0]
+                    or e.message[0]['code'] not in (88, 187)):
                 # It is not a rate-limit exceeded  or duplicate status error,
                 # re-raise it
                 raise e
 
-            if e.message['code'] == 187:
+            if e.message[0]['code'] == 187:
                 # Duplicate status, log an error and return
                 print('Failed to reply to tweet with ID {} with status: \"{}\"'
                       '- Duplicate status'.format(in_reply_to, status))
