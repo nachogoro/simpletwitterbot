@@ -21,6 +21,28 @@ def _update_replied_users(already_replied):
         pickle.dump(already_replied, dst)
 
 
+def check_error_code(e, code):
+    """
+    Returns whether the TwitterError object e contains the specified error code
+    code.
+    """
+    # A TwitterError has either a dictionary or a list of dictionaries as its
+    # message.
+    if isinstance(e.message, list):
+        for element in e.message:
+            if (isinstance(element, dict)
+                    and 'code' in element
+                    and element['code'] == code):
+                return True
+    else:
+        #It's a single element
+        if (isinstance(e.message, dict)
+                and 'code' in e.message
+                and e.message['code'] == code):
+            return True
+    return False
+
+
 def _safe_search(api, query):
     """
     Safe method to retrieve the results of a search query (sorted by recent, in
@@ -30,7 +52,7 @@ def _safe_search(api, query):
     fails because of a non-rate-limit-exceeded error, this method will throw an
     exception.
     This method is necessary because sleep_on_rate_limit seems to be buggy in
-    twitter-version 3.3.
+    twitter-version 3.4.2.
     """
     first_attempt = datetime.datetime.now()
 
@@ -43,9 +65,7 @@ def _safe_search(api, query):
                                  count=100)
 
         except twitter.error.TwitterError as e:
-            if (not isinstance(e.message[0], dict)
-                    or 'code' not in e.message[0]
-                    or e.message[0]['code'] != 88):
+            if not check_error_code(e, 88):
                 # It is not a rate-limit exceeded error, re-raise it
                 raise e
 
@@ -70,7 +90,7 @@ def _safe_reply(api, status, in_reply_to):
     If the operation fails because of a non-rate-limit-exceeded error, this
     method will throw an exception.
     This method is necessary because sleep_on_rate_limit seems to be buggy in
-    twitter-version 3.3.
+    twitter-version 3.4.2.
     """
     first_attempt = datetime.datetime.now()
 
@@ -81,14 +101,12 @@ def _safe_reply(api, status, in_reply_to):
                 in_reply_to_status_id=in_reply_to)
 
         except twitter.error.TwitterError as e:
-            if (not isinstance(e.message[0], dict)
-                    or 'code' not in e.message[0]
-                    or e.message[0]['code'] not in (88, 187)):
-                # It is not a rate-limit exceeded  or duplicate status error,
+            if not (check_error_code(e, 88) or check_error_code(e, 187)):
+                # It is not a rate-limit exceeded or duplicate status error,
                 # re-raise it
                 raise e
 
-            if e.message[0]['code'] == 187:
+            if check_error_code(e, 187):
                 # Duplicate status, log an error and return
                 print('Failed to reply to tweet with ID {} with status: \"{}\"'
                       '- Duplicate status'.format(in_reply_to, status))
